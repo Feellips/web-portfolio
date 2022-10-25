@@ -1,21 +1,25 @@
 import { Component } from '@angular/core';
 import * as THREE from 'three';
+import { BloomEffect, EffectComposer, EffectPass, RenderPass } from "postprocessing";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Object3D } from 'three/src/Three';
 
 let scene: THREE.Scene;
 let renderer: THREE.WebGLRenderer;
 let camera: THREE.PerspectiveCamera;
 let raycaster : THREE.Raycaster;
+let composer : EffectComposer;
 
 const mouse = new THREE.Vector2();
 let INTERSECTED : any;
 const radius = 100;
 let theta = 0;
+let array : Array<Cube> = new Array<Cube>();
 
 init();
 animate();
 
 function init() {
-
   camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 1000 );
   camera.position.set( 2, 1, 500 );
 
@@ -27,26 +31,15 @@ function init() {
   const light = new THREE.DirectionalLight( 0xffffff, 0.35 );
   light.position.set( 1, 1, 1 ).normalize();
   scene.add( light );
-
-  const geometry = new THREE.BoxGeometry( 20, 20, 20 );
-
-  for ( let i = 0; i < 1500; i ++ ) {
-
-    const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
-
-    object.position.x = Math.random() * 800 - 400;
-    object.position.y = Math.random() * 800 - 400;
-    object.position.z = Math.random() * 800 - 400;
-
-    scene.add( object );
-
-  }
-
   raycaster = new THREE.Raycaster();
 
   renderer = new THREE.WebGLRenderer( { antialias: true } );
   renderer.setPixelRatio( window.devicePixelRatio );
   renderer.setSize( window.innerWidth, window.innerHeight );
+
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new EffectPass(camera, new BloomEffect()));
 
   document.body.appendChild( renderer.domElement );
 
@@ -54,6 +47,10 @@ function init() {
   window.addEventListener( 'resize', onWindowResize );
   window.addEventListener( 'resize', onWindowResize );
 
+  const loader = new GLTFLoader();
+  loader.load('../assets/character/scene.gltf', function (gltf) {
+    scene.add(gltf.scene);
+  });
 }
 
 function onWindowResize() {
@@ -77,16 +74,39 @@ function onDocumentMouseMove( event : MouseEvent ) {
 function animate() {
   requestAnimationFrame( animate );
   render();
+  composer.render();
 }
 
+type Cube = {
+  obj : any,
+  z : number
+}
+
+setInterval(()=>{
+  const geometry = new THREE.BoxGeometry( 20, 20, 20 );
+  const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+
+  var cube : Cube = { obj : object, z : 0};
+    array.push(cube);
+    scene.add( object );
+}, 500);
 
 function render() {
 
-  theta += 0.1;
+  theta += 1;
 
-  camera.position.x = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
-  camera.position.y = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
-  camera.position.z = radius * Math.cos( THREE.MathUtils.degToRad( theta ) );
+array.forEach(element => {
+
+  element.z += 1;
+
+  element.obj.position.x = radius * Math.sin( THREE.MathUtils.degToRad( theta + element.z ) );
+  element.obj.position.y = radius * Math.cos( THREE.MathUtils.degToRad( theta + element.z ) );
+  element.obj.position.z = element.z;
+});
+
+  //camera.position.x = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
+
+  
   camera.lookAt( scene.position );
 
   camera.updateMatrixWorld();
