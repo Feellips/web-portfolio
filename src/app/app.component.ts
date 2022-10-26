@@ -2,11 +2,13 @@ import { Component } from '@angular/core';
 import * as THREE from 'three';
 import { BloomEffect, EffectComposer, EffectPass, RenderPass } from "postprocessing";
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CinematicCamera } from 'three/examples/jsm/cameras/CinematicCamera.js';
 import { Object3D } from 'three/src/Three';
+import { BokehShaderUniforms } from 'three/examples/jsm/shaders/BokehShader2';
 
 let scene: THREE.Scene;
 let renderer: THREE.WebGLRenderer;
-let camera: THREE.PerspectiveCamera;
+let camera: CinematicCamera;
 let raycaster : THREE.Raycaster;
 let composer : EffectComposer;
 
@@ -20,8 +22,9 @@ init();
 animate();
 
 function init() {
-  camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 1000 );
-  camera.position.set( 2, 1, 500 );
+  camera = new CinematicCamera( 60, window.innerWidth / window.innerHeight, 1, 1000 );
+  camera.setLens( 5 );
+  camera.position.set( 20, 15, 40 );
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color( 0xf0f0f0 );
@@ -45,10 +48,58 @@ function init() {
 
   document.addEventListener( 'mousemove', onDocumentMouseMove );
   window.addEventListener( 'resize', onWindowResize );
-  window.addEventListener( 'resize', onWindowResize );
+
+  const effectController : BokehShaderUniforms | any = {
+
+    focalLength: 15,
+    jsDepthCalculation: true,
+    shaderFocus: false,
+    //
+    fstop: 2.8,
+    // maxblur: 1.0,
+    //
+    showFocus: false,
+    focalDepth: 3,
+     manualdof: false,
+     vignetting: true,
+     depthblur: true,
+    //
+     threshold: 0.5,
+     gain: 2.0,
+     bias: 0.5,
+     fringe: 0.7,
+    //
+
+     noise: true,
+     pentagon: true,
+    //
+     dithering: 0.001
+
+  };
+
+  const matChanger = function ( ) {
+
+    for ( const e in effectController ) {
+
+      if ( e in camera.postprocessing.bokeh_uniforms ) {
+
+        camera.postprocessing.bokeh_uniforms[ e as keyof typeof camera.postprocessing.bokeh_uniforms ].value = effectController[ e ];
+
+      }
+
+    }
+
+    camera.postprocessing.bokeh_uniforms[ 'znear' ].value = camera.near;
+    camera.postprocessing.bokeh_uniforms[ 'zfar' ].value = camera.far;
+    camera.setLens( effectController.focalLength, camera.getFilmHeight(), effectController.fstop, camera.coc );
+    effectController[ 'focalDepth' ] = camera.postprocessing.bokeh_uniforms[ 'focalDepth' ].value;
+
+  };
+
+  matChanger();
 
   const loader = new GLTFLoader();
-  loader.load('../assets/character/scene.gltf', function (gltf) {
+  loader.load('../assets/character/place.gltf', function (gltf) {
     scene.add(gltf.scene);
   });
 }
@@ -86,10 +137,10 @@ setInterval(()=>{
   const geometry = new THREE.BoxGeometry( 20, 20, 20 );
   const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
 
-  var cube : Cube = { obj : object, z : 0};
+  var cube : Cube = { obj : object, z : -1000};
     array.push(cube);
     scene.add( object );
-}, 500);
+}, 300);
 
 function render() {
 
@@ -104,9 +155,8 @@ array.forEach(element => {
   element.obj.position.z = element.z;
 });
 
-  //camera.position.x = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
+//camera.position.z -= theta * 0.001;
 
-  
   camera.lookAt( scene.position );
 
   camera.updateMatrixWorld();
