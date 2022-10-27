@@ -3,12 +3,12 @@ import * as THREE from 'three';
 import { BloomEffect, EffectComposer, EffectPass, RenderPass } from "postprocessing";
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CinematicCamera } from 'three/examples/jsm/cameras/CinematicCamera.js';
-import { Object3D } from 'three/src/Three';
+import { Mesh, Object3D, Vector3 } from 'three/src/Three';
 import { BokehShaderUniforms } from 'three/examples/jsm/shaders/BokehShader2';
 
 let scene: THREE.Scene;
 let renderer: THREE.WebGLRenderer;
-let camera: CinematicCamera;
+let camera: THREE.OrthographicCamera;
 let raycaster : THREE.Raycaster;
 let composer : EffectComposer;
 
@@ -17,19 +17,39 @@ let INTERSECTED : any;
 const radius = 100;
 let theta = 0;
 let array : Array<Cube> = new Array<Cube>();
+const frustumSize = 5;
 
 init();
 animate();
 
 function init() {
-  camera = new CinematicCamera( 60, window.innerWidth / window.innerHeight, 1, 1000 );
-  camera.setLens( 5 );
-  camera.position.set( 20, 15, 40 );
+  const aspect = window.innerWidth / window.innerHeight;
+	camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, 1, 1000 );
+  camera.position.set( - 200, 200, 200 );
 
   scene = new THREE.Scene();
+  camera.lookAt( scene.position );
+
   scene.background = new THREE.Color( 0xf0f0f0 );
 
   scene.add( new THREE.AmbientLight( 0xffffff, 0.3 ) );
+  var lampLight = new THREE.PointLight( 0xeedd82 , 1, 100 );
+  var notebookLight = new THREE.PointLight( 0xfffffff , 10, 0.1 );
+
+  notebookLight.position.set( 0.8, -0.1, 0.3 );
+  lampLight.position.set( -1.30, 0.25, -0.85 );
+  
+  const geometry = new THREE.SphereGeometry( 0.09, 32, 16 );
+  const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+
+  lampLight.add(new Mesh(geometry, material));
+  //notebookLight.add(new Mesh(geometry, material));
+
+  let lightProbe = new THREE.LightProbe();
+
+  scene.add( lampLight );
+  scene.add( lightProbe );
+  scene.add( notebookLight );
 
   const light = new THREE.DirectionalLight( 0xffffff, 0.35 );
   light.position.set( 1, 1, 1 ).normalize();
@@ -49,68 +69,48 @@ function init() {
   document.addEventListener( 'mousemove', onDocumentMouseMove );
   window.addEventListener( 'resize', onWindowResize );
 
-  const effectController : BokehShaderUniforms | any = {
 
-    focalLength: 15,
-    jsDepthCalculation: true,
-    shaderFocus: false,
-    //
-    fstop: 2.8,
-    // maxblur: 1.0,
-    //
-    showFocus: false,
-    focalDepth: 3,
-     manualdof: false,
-     vignetting: true,
-     depthblur: true,
-    //
-     threshold: 0.5,
-     gain: 2.0,
-     bias: 0.5,
-     fringe: 0.7,
-    //
+  // const matChanger = function ( ) {
 
-     noise: true,
-     pentagon: true,
-    //
-     dithering: 0.001
+  //   for ( const e in effectController ) {
 
-  };
+  //     if ( e in camera.postprocessing.bokeh_uniforms ) {
 
-  const matChanger = function ( ) {
+  //       camera.postprocessing.bokeh_uniforms[ e as keyof typeof camera.postprocessing.bokeh_uniforms ].value = effectController[ e ];
 
-    for ( const e in effectController ) {
+  //     }
 
-      if ( e in camera.postprocessing.bokeh_uniforms ) {
+  //   }
 
-        camera.postprocessing.bokeh_uniforms[ e as keyof typeof camera.postprocessing.bokeh_uniforms ].value = effectController[ e ];
+  //   camera.postprocessing.bokeh_uniforms[ 'znear' ].value = camera.near;
+  //   camera.postprocessing.bokeh_uniforms[ 'zfar' ].value = camera.far;
+  //   camera.setLens( effectController.focalLength, camera.getFilmHeight(), effectController.fstop, camera.coc );
+  //   effectController[ 'focalDepth' ] = camera.postprocessing.bokeh_uniforms[ 'focalDepth' ].value;
 
-      }
+  // };
 
-    }
-
-    camera.postprocessing.bokeh_uniforms[ 'znear' ].value = camera.near;
-    camera.postprocessing.bokeh_uniforms[ 'zfar' ].value = camera.far;
-    camera.setLens( effectController.focalLength, camera.getFilmHeight(), effectController.fstop, camera.coc );
-    effectController[ 'focalDepth' ] = camera.postprocessing.bokeh_uniforms[ 'focalDepth' ].value;
-
-  };
-
-  matChanger();
+  // matChanger();
 
   const loader = new GLTFLoader();
-  loader.load('../assets/character/place.gltf', function (gltf) {
+  loader.load('../assets/character/room.gltf', function (gltf) {
     scene.add(gltf.scene);
   });
 }
 
 function onWindowResize() {
 
-  camera.aspect = window.innerWidth / window.innerHeight;
+  //camera.aspect = window.innerWidth / window.innerHeight;
+
+	const aspect = window.innerWidth / window.innerHeight;
+
+				camera.left = - frustumSize * aspect / 2;
+				camera.right = frustumSize * aspect / 2;
+				camera.top = frustumSize / 2;
+				camera.bottom = - frustumSize / 2;
+
   camera.updateProjectionMatrix();
 
   renderer.setSize( window.innerWidth, window.innerHeight );
-
 }
 
 function onDocumentMouseMove( event : MouseEvent ) {
@@ -125,7 +125,7 @@ function onDocumentMouseMove( event : MouseEvent ) {
 function animate() {
   requestAnimationFrame( animate );
   render();
-  composer.render();
+ // composer.render();
 }
 
 type Cube = {
@@ -133,14 +133,14 @@ type Cube = {
   z : number
 }
 
-setInterval(()=>{
-  const geometry = new THREE.BoxGeometry( 20, 20, 20 );
-  const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+// setInterval(()=>{
+//   const geometry = new THREE.BoxGeometry( 20, 20, 20 );
+//   const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
 
-  var cube : Cube = { obj : object, z : -1000};
-    array.push(cube);
-    scene.add( object );
-}, 300);
+//   var cube : Cube = { obj : object, z : -1000};
+//     array.push(cube);
+//     scene.add( object );
+// }, 300);
 
 function render() {
 
@@ -156,40 +156,37 @@ array.forEach(element => {
 });
 
 //camera.position.z -= theta * 0.001;
-
-  camera.lookAt( scene.position );
-
   camera.updateMatrixWorld();
 
   // find intersections
 
   raycaster.setFromCamera( mouse, camera );
 
-  const intersects = raycaster.intersectObjects( scene.children, false );
+  const intersects = raycaster.intersectObjects( scene.children, true );
 
-  if ( intersects.length > 0 ) {
+  // if ( intersects.length > 0 ) {
 
-    const targetDistance = intersects[ 0 ].distance;
+  //   const targetDistance = intersects[ 0 ].distance;
 
-    //camera.focusAt( targetDistance ); // using Cinematic camera focusAt method
+  //   //camera.focusAt( targetDistance ); // using Cinematic camera focusAt method
 
-    if ( INTERSECTED != intersects[ 0 ].object ) {
+  //   if ( INTERSECTED != intersects[ 0 ].object ) {
 
-      if ( INTERSECTED ) INTERSECTED.material.emissive.setHex( INTERSECTED.currentHex );
+  //     if ( INTERSECTED ) INTERSECTED.material.emissive.setHex( INTERSECTED.currentHex );
 
-      INTERSECTED = intersects[ 0 ].object;
-      INTERSECTED.currentHex = INTERSECTED.material.emissive.getHex();
-      INTERSECTED.material.emissive.setHex( 0xff0000 );
+  //     INTERSECTED = intersects[ 0 ].object;
+  //     INTERSECTED.currentHex = INTERSECTED.material.emissive.getHex();
+  //     INTERSECTED.material.emissive.setHex( 0xff0000 );
 
-    }
+  //   }
 
-  } else {
+  // } else {
 
-    if ( INTERSECTED ) INTERSECTED.material.emissive.setHex( INTERSECTED.currentHex );
+  //   if ( INTERSECTED ) INTERSECTED.material.emissive.setHex( INTERSECTED.currentHex );
 
-    INTERSECTED = null;
+  //   INTERSECTED = null;
 
-  }
+  // }
     scene.overrideMaterial = null;
 
     renderer.clear();
