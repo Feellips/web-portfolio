@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import * as THREE from 'three';
-import { BloomEffect, EffectComposer, EffectPass, RenderPass } from "postprocessing";
+import { SAOPass } from "three/examples/jsm/postprocessing/SAOPass";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CinematicCamera } from 'three/examples/jsm/cameras/CinematicCamera.js';
 import { Mesh, Object3D, Vector3 } from 'three/src/Three';
@@ -38,22 +40,48 @@ function init() {
 
   notebookLight.position.set( 0.8, -0.1, 0.3 );
   lampLight.position.set( -1.30, 0.25, -0.85 );
+  lampLight.castShadow = true;
+  lampLight.shadow.mapSize.width = 512; // default
+  lampLight.shadow.mapSize.height = 512; // default
+  lampLight.shadow.camera.near = 0.5; // default
+  lampLight.shadow.camera.far = 500; // default
   
-  const geometry = new THREE.SphereGeometry( 0.09, 32, 16 );
-  const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-
-  lampLight.add(new Mesh(geometry, material));
-  //notebookLight.add(new Mesh(geometry, material));
-
   let lightProbe = new THREE.LightProbe();
 
-  scene.add( lampLight );
-  scene.add( lightProbe );
-  scene.add( notebookLight );
+  //scene.add( lampLight );
+  //scene.add( lightProbe );
+  //scene.add( notebookLight );
 
-  const light = new THREE.DirectionalLight( 0xffffff, 0.35 );
-  light.position.set( 1, 1, 1 ).normalize();
-  scene.add( light );
+  // const light = new THREE.DirectionalLight( 0xffffff, 0.35 );
+  // light.position.set( 1, 1, 1 ).normalize();
+  // scene.add( light );
+
+
+
+  // light
+
+  var hemiLight = new THREE.HemisphereLight( 0xffffff, 0xffffff, 0.6 );
+  //hemiLight.color.setHSV( 0.6, 0.75, 0.5 );
+  //hemiLight.groundColor.setHSV( 0.095, 0.5, 0.5 );
+  hemiLight.position.set( 0, 500, 0 );
+  scene.add( hemiLight );
+
+  var dirLight = new THREE.DirectionalLight( 0xffffff, 1 );
+  dirLight.position.set( -1, 0.75, 1 );
+  dirLight.position.multiplyScalar( 50);
+  dirLight.name = "dirlight";
+  // dirLight.shadowCameraVisible = true;
+
+  scene.add( dirLight );
+
+
+  //dirLight.shadowDarkness = 0.35;
+
+
+  let light = new THREE.AmbientLight(0xFFFFFF, 0.5);
+
+  scene.add(light, hemiLight);
+
   raycaster = new THREE.Raycaster();
 
   renderer = new THREE.WebGLRenderer( { antialias: true } );
@@ -61,40 +89,22 @@ function init() {
   renderer.setSize( window.innerWidth, window.innerHeight );
 
   composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new EffectPass(camera, new BloomEffect()));
 
   document.body.appendChild( renderer.domElement );
 
   document.addEventListener( 'mousemove', onDocumentMouseMove );
   window.addEventListener( 'resize', onWindowResize );
 
-
-  // const matChanger = function ( ) {
-
-  //   for ( const e in effectController ) {
-
-  //     if ( e in camera.postprocessing.bokeh_uniforms ) {
-
-  //       camera.postprocessing.bokeh_uniforms[ e as keyof typeof camera.postprocessing.bokeh_uniforms ].value = effectController[ e ];
-
-  //     }
-
-  //   }
-
-  //   camera.postprocessing.bokeh_uniforms[ 'znear' ].value = camera.near;
-  //   camera.postprocessing.bokeh_uniforms[ 'zfar' ].value = camera.far;
-  //   camera.setLens( effectController.focalLength, camera.getFilmHeight(), effectController.fstop, camera.coc );
-  //   effectController[ 'focalDepth' ] = camera.postprocessing.bokeh_uniforms[ 'focalDepth' ].value;
-
-  // };
-
-  // matChanger();
-
   const loader = new GLTFLoader();
   loader.load('../assets/character/room.gltf', function (gltf) {
     scene.add(gltf.scene);
   });
+
+  let renderPass = new RenderPass( scene, camera );
+  composer.addPass( renderPass );
+  let saoPass = new SAOPass( scene, camera, false, true );
+  composer.addPass( saoPass );
+  
 }
 
 function onWindowResize() {
@@ -125,7 +135,7 @@ function onDocumentMouseMove( event : MouseEvent ) {
 function animate() {
   requestAnimationFrame( animate );
   render();
- // composer.render();
+  composer.render();
 }
 
 type Cube = {
